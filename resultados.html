@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Visualización de Respuestas - Clima Organizacional</title>
+    <style>
+        :root {
+            --primary: #2563eb;
+            --primary-hover: #1d4ed8;
+            --bg: #f8fafc;
+            --card-bg: #ffffff;
+            --text: #1e293b;
+            --border: #cbd5e1;
+        }
+        body { font-family: system-ui, -apple-system, sans-serif; background-color: var(--bg); color: var(--text); margin: 0; padding: 20px; }
+        .container { max-width: 900px; margin: 0 auto; background: var(--card-bg); padding: 30px; border-radius: 12px; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); }
+        h1, h2, h3 { color: var(--primary); }
+        .form-group { margin-bottom: 20px; }
+        label { display: block; font-weight: 600; margin-bottom: 8px; }
+        select { width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 6px; box-sizing: border-box; background: white; font-size: 16px; }
+        .question-card { background: #f1f5f9; padding: 12px 15px; border-radius: 8px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
+        .question-text { font-weight: 500; flex: 1; }
+        .answer-badge { background: var(--primary); color: white; padding: 6px 12px; border-radius: 20px; font-weight: 600; font-size: 14px; margin-left: 15px; white-space: nowrap; }
+        #loading { font-weight: bold; color: var(--primary); margin-top: 10px; }
+        .bloque-section { margin-top: 25px; border-top: 2px solid #e2e8f0; padding-top: 15px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>Resultados de Clima Organizacional</h1>
+    <div id="loading">Cargando datos desde la hoja de cálculo...</div>
+    
+    <div id="content-container" style="display:none;">
+        <div class="form-group">
+            <label for="selectPersona">Selecciona una persona:</label>
+            <select id="selectPersona" onchange="mostrarRespuestasPersona()">
+                <option value="">-- Elige un participante --</option>
+            </select>
+        </div>
+
+        <div id="resultado-detallado">
+            <p style="color: #64748b;">Selecciona un participante para ver sus respuestas agrupadas por bloques.</p>
+        </div>
+    </div>
+</div>
+
+<script>
+    const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbwewYmCGtgYzoKErQNyvlUpOA6Oc-GHpEf0O0GFwlkmsnqPgU2DxVDv3ARtd6ZbaUlIiw/exec";
+    
+    let preguntasMap = {};
+    let respuestasGlobal = [];
+    let personasMap = {};
+
+    const nombresBloques = {
+        0: "Bloque 0: ¿Con qué frecuencia, durante el último mes, he sentido?",
+        1: "Bloque 1: Satisfacción con el ambiente de trabajo",
+        2: "Bloque 2: Situación profesional",
+        3: "Bloque 3: Afirmaciones acerca de El centro en que usted trabaja"
+    };
+
+    async function inicializar() {
+        try {
+            // 1. Cargar Preguntas
+            const resPreguntas = await fetch(WEB_APP_URL + "?action=preguntas");
+            const preguntas = await resPreguntas.json();
+            preguntas.forEach(p => {
+                preguntasMap[p.id] = p;
+            });
+
+            // 2. Cargar Respuestas
+            const resRespuestas = await fetch(WEB_APP_URL + "?action=respuestas");
+            const rawRespuestas = await resRespuestas.json();
+            
+            // Omitir la fila de cabecera [ID Encuesta, Fecha, Hora, Nombre, ID_Pregunta, Respuesta]
+            for (let i = 1; i < rawRespuestas.length; i++) {
+                let r = rawRespuestas[i];
+                let idEncuesta = r[0];
+                let fecha = r[1];
+                let hora = r[2];
+                let nombre = r[3];
+                let idPregunta = r[4];
+                let respuesta = r[5];
+
+                if (!nombre) continue;
+
+                if (!personasMap[idEncuesta]) {
+                    personasMap[idEncuesta] = {
+                        nombre: nombre,
+                        fecha: fecha + ' ' + hora,
+                        respuestas: {}
+                    };
+                }
+                personasMap[idEncuesta].respuestas[idPregunta] = respuesta;
+            }
+
+            poblarSelect();
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('content-container').style.display = 'block';
+
+        } catch (err) {
+            document.getElementById('loading').innerText = "Error al cargar los datos: " + err;
+        }
+    }
+
+    function poblarSelect() {
+        const select = document.getElementById('selectPersona');
+        for (let idEncuesta in personasMap) {
+            let p = personasMap[idEncuesta];
+            let opt = document.createElement('option');
+            opt.value = idEncuesta;
+            opt.textContent = `${p.nombre} (Enviado el: ${p.fecha})`;
+            select.appendChild(opt);
+        }
+    }
+
+    function mostrarRespuestasPersona() {
+        const idEncuesta = document.getElementById('selectPersona').value;
+        const contenedor = document.getElementById('resultado-detallado');
+        
+        if (!idEncuesta) {
+            contenedor.innerHTML = '<p style="color: #64748b;">Selecciona un participante para ver sus respuestas agrupadas por bloques.</p>';
+            return;
+        }
+
+        const personaData = personasMap[idEncuesta];
+        let porBloque = { 0: [], 1: [], 2: [], 3: [] };
+
+        // Agrupar respuestas por bloque según la definición de las preguntas
+        for (let idPregunta in personaData.respuestas) {
+            let pregInfo = preguntasMap[idPregunta];
+            if (pregInfo) {
+                let bloqueNum = pregInfo.bloque;
+                if (!porBloque[bloqueNum]) porBloque[bloqueNum] = [];
+                porBloque[bloqueNum].push({
+                    orden: pregInfo.orden,
+                    pregunta: pregInfo.pregunta,
+                    respuesta: personaData.respuestas[idPregunta]
+                });
+            }
+        }
+
+        let html = `<h2>Participante: ${personaData.nombre}</h2>`;
+        html += `<p style="color: #64748b; margin-bottom: 20px;">Fecha de envío: ${personaData.fecha}</p>`;
+
+        for (let bloqueNum in porBloque) {
+            let items = porBloque[bloqueNum];
+            if (items.length === 0) continue;
+
+            // Ordenar por el orden original de la pregunta
+            items.sort((a, b) => a.orden - b.orden);
+
+            html += `<div class="bloque-section">`;
+            html += `<h3>${nombresBloques[bloqueNum] || 'Bloque ' + bloqueNum}</h3>`;
+
+            items.forEach(item => {
+                html += `<div class="question-card">
+                    <span class="question-text">${item.orden}. ${item.pregunta}</span>
+                    <span class="answer-badge">${item.respuesta}</span>
+                </div>`;
+            });
+
+            html += `</div>`;
+        }
+
+        contenedor.innerHTML = html;
+    }
+
+    window.onload = inicializar;
+</script>
+
+</body>
+</html>
