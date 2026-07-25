@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cuestionario de Clima Organizacional</title>
+    <style>
+        :root {
+            --primary: #2563eb;
+            --primary-hover: #1d4ed8;
+            --bg: #f8fafc;
+            --card-bg: #ffffff;
+            --text: #1e293b;
+            --border: #cbd5e1;
+        }
+        body { font-family: system-ui, -apple-system, sans-serif; background-color: var(--bg); color: var(--text); margin: 0; padding: 20px; }
+        .container { max-width: 800px; margin: 0 auto; background: var(--card-bg); padding: 30px; border-radius: 12px; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); }
+        h1, h2, h3 { color: var(--primary); }
+        button { background-color: var(--primary); color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-weight: 600; }
+        button:hover { background-color: var(--primary-hover); }
+        .form-group { margin-bottom: 20px; }
+        label { display: block; font-weight: 600; margin-bottom: 8px; }
+        input[type="text"] { width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 6px; box-sizing: border-box; }
+        .question-card { background: #f1f5f9; padding: 15px; border-radius: 8px; margin-bottom: 15px; }
+        .options-list label { font-weight: normal; display: inline-block; margin-right: 15px; cursor: pointer; }
+        #loading, #loading-form { font-weight: bold; color: var(--primary); margin-top: 10px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>Clima Organizacional</h1>
+    <div id="loading-form">Cargando cuestionario desde la hoja de cálculo...</div>
+    
+    <div id="formulario-container" style="display:none;">
+        <div class="form-group">
+            <label for="nombreUsuario">Tu Nombre:</label>
+            <input type="text" id="nombreUsuario" placeholder="Introduce tu nombre completo" required>
+        </div>
+        
+        <div id="contenedor-preguntas"></div>
+
+        <button onclick="enviarRespuestas()">Enviar Respuestas</button>
+        <div id="loading" style="display:none;">Enviando datos...</div>
+    </div>
+</div>
+
+<script>
+    const WEB_APP_URL = "TU_URL_DE_APPS_SCRIPT_AQUI";
+    let preguntasGlobal = [];
+
+    // Cargar preguntas desde Google Sheets al iniciar
+    function cargarCuestionario() {
+        fetch(WEB_APP_URL)
+            .then(res => res.json())
+            .then(data => {
+                preguntasGlobal = data;
+                renderizarFormulario(data);
+                document.getElementById('loading-form').style.display = 'none';
+                document.getElementById('formulario-container').style.display = 'block';
+            })
+            .catch(err => {
+                document.getElementById('loading-form').innerText = "Error al cargar las preguntas: " + err;
+            });
+    }
+
+    function renderizarFormulario(preguntas) {
+        const contenedor = document.getElementById('contenedor-preguntas');
+        let html = '';
+        let bloqueActual = -1;
+
+        const nombresBloques = {
+            0: "Bloque 0: ¿Con qué frecuencia, durante el último mes, he sentido?",
+            1: "Bloque 1: Satisfacción con el ambiente de trabajo",
+            2: "Bloque 2: Situación profesional",
+            3: "Bloque 3: Afirmaciones acerca de El centro en que usted trabaja"
+        };
+
+        preguntas.forEach((p) => {
+            if (p.bloque !== bloqueActual) {
+                bloqueActual = p.bloque;
+                html += `<h3>${nombresBloques[bloqueActual] || 'Bloque ' + bloqueActual}</h3>`;
+            }
+            
+            html += `<div class="question-card">
+                <label>${p.orden}. ${p.pregunta}</label>
+                <div class="options-list">`;
+            
+            p.opciones.forEach((opcion) => {
+                if (opcion) {
+                    html += `<label><input type="radio" name="p_${p.id}" value="${opcion}" required> ${opcion}</label>`;
+                }
+            });
+            
+            html += `</div></div>`;
+        });
+
+        contenedor.innerHTML = html;
+    }
+
+    function enviarRespuestas() {
+        const nombre = document.getElementById('nombreUsuario').value.trim();
+        if (!nombre) {
+            alert("Por favor, introduce tu nombre antes de enviar.");
+            return;
+        }
+
+        let respuestas = [];
+        let valido = true;
+
+        preguntasGlobal.forEach((p) => {
+            const seleccion = document.querySelector(`input[name="p_${p.id}"]:checked`);
+            if (!seleccion) {
+                valido = false;
+            } else {
+                respuestas.push({
+                    id_pregunta: p.id,
+                    respuesta: seleccion.value
+                });
+            }
+        });
+
+        if (!valido) {
+            alert("Por favor, responde todas las preguntas antes de enviar.");
+            return;
+        }
+
+        document.getElementById('loading').style.display = 'block';
+
+        fetch(WEB_APP_URL, {
+            method: 'POST',
+            body: JSON.stringify({ nombre: nombre, respuestas: respuestas })
+        })
+        .then(res => res.json())
+        .then(data => {
+            document.getElementById('loading').style.display = 'none';
+            alert("¡Respuestas enviadas con éxito!");
+            location.reload();
+        })
+        .catch(err => {
+            document.getElementById('loading').style.display = 'none';
+            alert("Error al enviar: " + err);
+        });
+    }
+
+    window.onload = cargarCuestionario;
+</script>
+
+</body>
+</html>
