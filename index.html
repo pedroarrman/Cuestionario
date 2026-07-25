@@ -24,6 +24,17 @@
         .question-card { background: #f1f5f9; padding: 15px; border-radius: 8px; margin-bottom: 15px; }
         .options-list label { font-weight: normal; display: inline-block; margin-right: 15px; cursor: pointer; }
         #loading, #loading-form { font-weight: bold; color: var(--primary); margin-top: 10px; }
+
+        a:link {
+  text-decoration: none;
+  color: white;          
+}
+
+a:visited {
+  text-decoration: none;
+}
+
+        
     </style>
 </head>
 <body>
@@ -32,6 +43,8 @@
     <h1>Clima Organizacional</h1>
     <div id="loading-form">Cargando cuestionario desde la hoja de cálculo...</div>
     
+            <button><a href="resultados.html">Ver Respuestas</a></button>
+
     <div id="formulario-container" style="display:none;">
         <div class="form-group">
             <label for="nombreUsuario">Tu Nombre:</label>
@@ -42,7 +55,6 @@
 
         <button onclick="enviarRespuestas()">Enviar Respuestas</button>
         <div id="loading" style="display:none;">Enviando datos...</div>
-        <button><a href="respuestas.html">Ver Respuestas</a></button>
     </div>
 </div>
 
